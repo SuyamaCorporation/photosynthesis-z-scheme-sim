@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photosynthesis Z-Scheme Electron Flow Sim</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @keyframes electronFlow {
+    0% { stroke-dashoffset: 100; opacity: 1; }
+    80% { opacity: 1; }
+    100% { stroke-dashoffset: 0; opacity: 0.2; }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.08); }
+  }
+  @keyframes electronDot {
+    0% { opacity: 0; }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .component-box {
+    transition: all 0.3s ease;
+  }
+  .step-active {
+    filter: drop-shadow(0 0 8px #fbbf24);
+  }
+  .electron-path {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+  }
+  .animating .electron-path {
+    animation: electronFlow 1.5s forwards;
+  }
+  #infoPanel {
+    transition: all 0.4s ease;
+  }
+</style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col">
+  <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+    <h1 class="text-2xl font-bold text-green-400">🌿 Photosynthesis Z-Scheme Electron Flow Simulator</h1>
+    <p class="text-gray-400 text-sm mt-1">Light-dependent reactions: electron transport chain visualization</p>
+  </header>
+
+  <main class="flex flex-col lg:flex-row flex-1 gap-4 p-4">
+    <!-- Diagram Panel -->
+    <div class="flex-1 bg-gray-800 rounded-xl border border-gray-700 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <span class="text-xs text-gray-400">Redox Potential Scale</span>
+          <div class="flex gap-4 mt-1">
+            <span class="flex items-center gap-1 text-xs"><span class="inline-block w-3 h-3 rounded-full bg-yellow-400"></span>Excited</span>
+            <span class="flex items-center gap-1 text-xs"><span class="inline-block w-3 h-3 rounded-full bg-red-500"></span>Oxidized</span>
+            <span class="flex items-center gap-1 text-xs"><span class="inline-block w-3 h-3 rounded-full bg-blue-400"></span>Reduced</span>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button id="btnStart" onclick="startAnimation()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors" aria-label="Start electron flow animation">
+            ▶ Start
+          </button>
+          <button id="btnReset" onclick="resetAnimation()" class="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors" aria-label="Reset animation">
+            ↺ Reset
+          </button>
+          <button id="btnAuto" onclick="toggleAuto()" class="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors" aria-label="Toggle auto-play">
+            Auto
+          </button>
+        </div>
+      </div>
+
+      <div class="relative w-full" style="height: 520px;">
+        <svg id="zSchemeSVG" viewBox="0 0 900 520" class="w-full h-full" role="img" aria-label="Z-scheme electron transport diagram">
+          <!-- Background grid -->
+          <defs>
+            <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#60a5fa"/>
+            </marker>
+            <marker id="arrowYellow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#fbbf24"/>
+            </marker>
+            <marker id="arrowRed" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#f87171"/>
+            </marker>
+            <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#34d399"/>
+            </marker>
+          </defs>
+
+          <!-- Y-axis (redox potential) -->
+          <line x1="60" y1="20" x2="60" y2="500" stroke="#4b5563" stroke-width="1.5"/>
+          <!-- Axis label -->
+          <text x="14" y="260" fill="#9ca3af" font-size="11" transform="rotate(-90 14 260)" text-anchor="middle">Redox Potential (V)</text>
+
+          <!-- Y-axis ticks and labels -->
+          <!-- -1.2V = y=40, +0.8V = y=480, range=2.0V over 440px → 220px/V -->
+          <!-- y = 40 + (1.2 + V) * 220 -->
+          <g fill="#9ca3af" font-size="10" text-anchor="end">
+            <text x="55" y="44">−1.2</text>
+            <line x1="57" y1="40" x2="63" y2="40" stroke="#4b5563"/>
+            <text x="55" y="94">−1.0</text>
+            <line x1="57" y1="90" x2="63" y2="90" stroke="#4b5563"/>
+            <text x="55" y="154">−0.7</text>
+            <line x1="57" y1="150" x2="63" y2="150" stroke="#4b5563"/>
+            <text x="55" y="204">−0.5</text>
+            <line x1="57" y1="200" x2="63" y2="200" stroke="#4b5563"/>
+            <text x="55" y="264">−0.2</text>
+            <line x1="57" y1="260" x2="63" y2="260" stroke="#4b5563"/>
+            <text x="55" y="324">+0.1</text>
+            <line x1="57" y1="320" x2="63" y2="320" stroke="#4b5563"/>
+            <text x="55" y="384">+0.4</text>
+            <line x1="57" y1="380" x2="63" y2="380" stroke="#4b5563"/>
+            <text x="55" y="444">+0.7</text>
+            <line x1="57" y1="440" x2="63" y2="440" stroke="#4b5563"/>
+            <text x="55" y="484">+0.82</text>
+            <line x1="57" y1="480" x2="63" y2="480" stroke="#4b5563"/>
+          </g>
+
+          <!-- Horizontal zero line -->
+          <line x1="60" y1="304" x2="900" y2="304" stroke="#374151" stroke-width="1" stroke-dasharray="4,4"/>
+          <text x="870" y="300" fill="#374151" font-size="9">0V</text>
+
+          <!-- ===== PSII (P680) ===== -->
+          <!-- Ground state: E0 = +1.1V → y = 40 + (1.2 - 1.1)*220 = 40 + 22 = 62 ... wait let me recalc -->
+          <!-- y = 40 + (1.2 - V) * 220 where V is redox potential and top is −1.2 -->
+          <!-- Actually: y = 40 + (V_max - V) * scale where V_max = +0.82V, V_min = -1.2V, scale = 440/2.02 ≈ 217.8 -->
+          <!-- Let's use: y = 40 + (-1.2 - V) * (-217.8) = 40 + (V + 1.2) * 217.8 ... but -1.2 is top -->
+          <!-- y = 480 - (V - (-0.82)) * 217.8 ... let me just hardcode positions based on visual logic -->
+
+          <!-- PSII Ground (P680, +1.1V): y ≈ 480 - (1.1+0.82)*1 * ... let me simplify -->
+          <!-- Scale: -1.2V = y=40, +0.82V = y=480. Range = 2.02V, pixels = 440. So 1V = 217.8px -->
+          <!-- y(V) = 480 - (V - 0.82) * 217.8 wait no: y increases downward, V=-1.2 → y=40, V=+0.82 → y=480 -->
+          <!-- y = 40 + (V - (-1.2)) / 2.02 * 440 = 40 + (V+1.2)/2.02*440 -->
+
+          <!-- Components (pre-calculated y positions): -->
+          <!-- PSII excited P680*: E0 ≈ -0.8V → y = 40 + (-0.8+1.2)/2.02*440 = 40 + 87 = 127 -->
+          <!-- PSII ground P680+: E0 ≈ +1.1V → y = 40 + (1.1+1.2)/2.02*440 = 40 + 501 = too low; cap at ~470 -->
+          <!-- PQ (plastoquinone): E0 ≈ -0.05V → y = 40 + 1.15/2.02*440 = 40 + 250 = 290 -->
+          <!-- Cyt b6f: E0 ≈ +0.36V → y = 40 + 1.56/2.02*440 = 40 + 340 = 380 -->
+          <!-- PC (plastocyanin): E0 ≈ +0.37V → y ≈ 380 -->
+          <!-- PSI excited P700*: E0 ≈ -1.0V → y = 40 + 0.2/2.02*440 = 40 + 44 = 84 wait: (-1.0+1.2)/2.02*440=43.6 → y=84 -->
+          <!-- PSI ground P700+: E0 ≈ +0.45V → y = 40 + 1.65/2.02*440 ≈ 40 + 359 = 399 -->
+          <!-- Fd: E0 ≈ -0.43V → y = 40 + 0.77/2.02*440 ≈ 40 + 167 = 207 -->
+          <!-- NADP+/NADPH: E0 ≈ -0.32V → y = 40 + 0.88/2.02*440 ≈ 40 + 192 = 232 -->
+          <!-- Pheo/QA: E0 ≈ -0.6V → y = 40 + 0.6/2.02*440 ≈ 40+131=171 wait (-0.6+1.2)/2.02*440 = 130 → y=170 -->
+
+          <!-- Left side: PSII system (x around 150-250) -->
+          <!-- Right side: PSI system (x around 600-750) -->
+
+          <!-- Light arrows -->
+          <g id="lightArrows">
+            <line x1="185" y1="490" x2="185" y2="420" stroke="#fbbf24" stroke-width="2" stroke-dasharray="4,3" opacity="0.7"/>
+            <text x="185" y="505" fill="#fbbf24" font-size="11" text-anchor="middle">hν 680nm</text>
+            <line x1="640" y1="490" x2="640" y2="400" stroke="#fbbf24" stroke-width="2" stroke-dasharray="4,3" opacity="0.7"/>
+            <text x="640" y="505" fill="#fbbf24" font-size="11" text-anchor="middle">hν 700nm</text>
+          </g>
+
+          <!-- ===== PSII Components ===== -->
+          <!-- P680 ground state box (y≈460) -->
+          <g id="compP680ground" class="component-box" role="button" aria-label="P680 ground state" onclick="showInfo('p680g')" style="cursor:pointer">
+            <rect x="120" y="450" width="130" height="32" rx="6" fill="#7f1d1d" stroke="#ef4444" stroke-width="2"/>
+            <text x="185" y="462" fill="#fca5a5" font-size="11" text-anchor="middle" font-weight="bold">P680 (PSII)</text>
+            <text x="185" y="477" fill="#fca5a5" font-size="10" text-anchor="middle">E°= +1.1V (ground)</text>
+          </g>
+
+          <!-- P680* excited state (y≈127) -->
+          <g id="compP680excited" class="component-box" role="button" aria-label="P680 excited state" onclick="showInfo('p680e')" style="cursor:pointer" opacity="0.5">
+            <rect x="120" y="115" width="130" height="32" rx="6" fill="#713f12" stroke="#fbbf24" stroke-width="2"/>
+            <text x="185" y="127" fill="#fde68a" font-size="11" text-anchor="middle" font-weight="bold">P680* (excited)</text>
+            <text x="185" y="142" fill="#fde68a" font-size="10" text-anchor="middle">E°= −0.8V</text>
+          </g>
+
+          <!-- Vertical arrow: ground → excited for PSII -->
+          <g id="lightExcitePSII" opacity="0.3">
+            <line x1="185" y1="450" x2="185" y2="150" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrowYellow)"/>
+          </g>
+
+          <!-- Pheo/QA intermediate (~y=170) -->
+          <g id="compPheo" class="component-box" role="button" aria-label="Pheophytin QA" onclick="showInfo('pheo')" style="cursor:pointer" opacity="0.5">
+            <rect x="120" y="158" width="130" height="28" rx="6" fill="#1e3a5f" stroke="#60a5fa" stroke-width="1.5"/>
+            <text x="185" y="170" fill="#93c5fd" font-size="10" text-anchor="middle" font-weight="bold">Pheo / QA</text>
+            <text x="185" y="183" fill="#93c5fd" font-size="9" text-anchor="middle">E°= −0.6V</text>
+          </g>
+
+          <!-- PQ (plastoquinone, y≈285) -->
+          <g id="compPQ" class="component-box" role="button" aria-label="Plastoquinone PQ" onclick="showInfo('pq')" style="cursor:pointer" opacity="0.5">
+            <rect x="245" y="273" width="120" height="28" rx="6" fill="#1e3a5f" stroke="#60a5fa" stroke-width="1.5"/>
+            <text x="305" y="285" fill="#93c5fd" font-size="10" text-anchor="middle" font-weight="bold">PQ (Plastoquinone)</text>
+            <text x="305" y="298" fill="#93c5fd" font-size="9" text-anchor="middle">E°= −0.05V</text>
+          </g>
+
+          <!-- Cyt b6f (y≈368) -->
+          <g id="compCytb6f" class="component-box" role="button" aria-label="Cytochrome b6f complex" onclick="showInfo('cytb6f')" style="cursor:pointer" opacity="0.5">
+            <rect x="390" y="356" width="130" height="28" rx="6" fill="#1e3a5f" stroke="#60a5fa" stroke-width="1.5"/>
+            <text x="455" y="368" fill="#93c5fd" font-size="10" text-anchor="middle" font-weight="bold">Cyt b6f complex</text>
+            <text x="455" y="381" fill="#93c5fd" font-size="9" text-anchor="middle">E°= +0.36V</text>
+          </g>
+
+          <!-- PC (plastocyanin, y≈375) -->
+          <g id="compPC" class="component-box" role="button" aria-label="Plastocyanin PC" onclick="showInfo('pc')" style="cursor:pointer" opacity="0.5">
+            <rect x="530" y="363" width="100" height="28" rx="6" fill="#1e3a5f" stroke="#60a5fa" stroke-width="1.5"/>
+            <text x="580" y="375" fill="#93c5fd" font-size="10" text-anchor="middle" font-weight="bold">PC (Plastocyanin)</text>
+            <text x="580" y="388" fill="#93c5fd" font-size="9" text-anchor="middle">E°= +0.37V</text>
+          </g>
+
+          <!-- P700 ground (y≈390) -->
+          <g id="compP700ground" class="component-box" role="button" aria-label="P700 ground state" onclick="showInfo('p700g')" style="cursor:pointer">
+            <rect x="605" y="380" width="130" height="32" rx="6" fill="#1e3a2f" stroke="#34d399" stroke-width="2"/>
+            <text x="670" y="392" fill="#6ee7b7" font-size="11" text-anchor="middle" font-weight="bold">P700 (PSI)</text>
+            <text x="670" y="407" fill="#6ee7b7" font-size="10" text-anchor="middle">E°= +0.45V (ground)</text>
+          </g>
+
+          <!-- P700* excited (y≈80) -->
+          <g id="compP700excited" class="component-box" role="button" aria-label="P700 excited state" onclick="showInfo('p700e')" style="cursor:pointer" opacity="0.5">
+            <rect x="605" y="68" width="130" height="32" rx="6" fill="#1a3320" stroke="#fbbf24" stroke-width="2"/>
+            <text x="670" y="80" fill="#fde68a" font-size="11" text-anchor="middle" font-weight="bold">P700* (excited)</text>
+            <text x="670" y="95" fill="#fde68a" font-size="10" text-anchor="middle">E°= −1.0V</text>
+          </g>
+
+          <!-- Vertical arrow: P700 ground → excited -->
+          <g id="lightExcitePSI" opacity="0.3">
+            <line x1="670" y1="380" x2="670" y2="102" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrowYellow)"/>
+          </g>
+
+          <!-- Fd (ferredoxin, y≈205) -->
+          <g id="compFd" class="component-box" role="button" aria-label="Ferredoxin Fd" onclick="showInfo('fd')" style="cursor:pointer" opacity="0.5">
+            <rect x="605" y="193" width="130" height="28" rx="6" fill="#1e3a5f" stroke="#60a5fa" stroke-width="1.5"/>
+            <text x="670" y="205" fill="#93c5fd" font-size="10" text-anchor="middle" font-weight="bold">Fd (Ferredoxin)</text>
+            <text x="670" y="218" fill="#93c5fd" font-size="9" text-anchor="middle">E°= −0.43V</text>
+          </g>
+
+          <!-- NADP+ Reductase (y≈228) -->
+          <g id="compFNR" class="component-box" role="button" aria-label="NADP reductase FNR" onclick="showInfo('fnr')" style="cursor:pointer" opacity="0.5">
+            <rect x="740" y="218" width="140" height="28" rx="6" fill="#2d1b69" stroke="#a78bfa" stroke-width="1.5"/>
+            <text x="810" y="230" fill="#c4b5fd" font-size="10" text-anchor="middle" font-weight="bold">FNR (NADP⁺ Red.)</text>
+            <text x="810" y="243" fill="#c4b5fd" font-size="9" text-anchor="middle">E°= −0.32V → NADPH</text>
+          </g>
+
+          <!-- Water splitting (O2 production) -->
+          <g id="compOEC" class="component-box" role="button" aria-label="Oxygen evolving complex" onclick="showInfo('oec')" style="cursor:pointer">
+            <rect x="20" y="445" width="95" height="40" rx="6" fill="#064e3b" stroke="#10b981" stroke-width="2"/>
+            <text x="67" y="460" fill="#6ee7b7" font-size="10" text-anchor="middle" font-weight="bold">OEC</text>
+            <text x="67" y="473" fill="#6ee7b7" font-size="9" text-anchor="middle">2H₂O→O₂</text>
+            <text x="67" y="484" fill="#6ee7b7" font-size="8" text-anchor="middle">+0.82V</text>
+          </g>
+
+          <!-- ===== Electron flow paths (animated) ===== -->
+          <!-- Step 1: OEC → P680 ground (electrons filling P680+) -->
+          <path id="pathOEC" d="M115,465 L120,465" stroke="#34d399" stroke-width="2.5" fill="none"
+                stroke-dasharray="8,4" marker-end="url(#arrowGreen)" opacity="0" class="electron-path"/>
+
+          <!-- Step 2: P680 ground → P680 excited (light excitation) -->
+          <path id="pathExcitePSII" d="M185,450 L185,150" stroke="#fbbf24" stroke-width="2.5" fill="none"
+                stroke-dasharray="8,4" marker-end="url(#arrowYellow)" opacity="0" class="electron-path"/>
+
+          <!-- Step 3: P680* → Pheo/QA -->
+          <path id="pathP680toPheo" d="M185,148 L185,158" stroke="#60a5fa" stroke-width="2.5" fill="none"
+                stroke-dasharray="6,3" marker-end="url(#arrowBlue)" opacity="0" class="electron-path"/>
+
+          <!-- Step 4: Pheo → PQ -->
+          <path id="pathPheoToPQ" d="M240,175 Q300,230 305,273" stroke="#60a5fa" stroke-width="2.5" fill="none"
+                stroke-dasharray="6,3" marker-end="url(#arrowBlue)" opacity="0" class="electron-path"/>
+
+          <!-- Step 5: PQ → Cyt b6f -->
+          <path id="pathPQtoCyt" d="M365,287 L455,356" stroke="#60a5fa" stroke-width="2.5" fill="none"
+                stroke-dasharray="6,3" marker-end="url(#arrowBlue)" opacity="0" class="electron-path"/>
+
+          <!-- Step 6: Cyt b6f → PC -->
+          <path id="pathCytToPC" d="M520,370 L530,370" stroke="#60a5fa" stroke-width="2.5" fill="none"
+                stroke-dasharray="6,3" marker-end="url(#arrowBlue)" opacity="0" class="electron-path"/>
+
+          <!-- Step 7: PC → P700 ground (electrons to PSI) -->
+          <path id="pathPCtoP700" d="M630,377 L635,390" stroke="#60a5fa" stroke-width="2.5" fill="none"
+                stroke-dasharray="6,3" marker-end="url(#arrowBlue)" opacity="0" class="electron-path"/>
+
+          <!-- Step 8: P700 ground → P700* excited (light excitation) -->
+          <path id="pathExcitePSI" d="M670,380 L670,102" stroke="#fbbf24" stroke-width="2.5" fill="none"
+                stroke-dasharray="8,4" marker-end="url(#arrowYellow)" opacity="0" class="electron-path"/>
+
+          <!-- Step 9: P700* → Fd -->
+          <path id="pathP700toFd" d="M670,100 L670,193" stroke="#60a5fa" stroke-width="2.5" fill="none"
+                stroke-dasharray="6,3" marker-end="url(#arrowBlue)" opacity="0" class="electron-path"/>
+
+          <!-- Step 10: Fd → FNR/NADPH -->
+          <path id="pathFdToFNR" d="M735,207 L740,232" stroke="#a78bfa" stroke-width="2.5" fill="none"
+                stroke-dasharray="6,3" marker-end="url(#arrowBlue)" opacity="0" class="electron-path"/>
+
+          <!-- NADPH output arrow -->
+          <g id="nadphOutput" opacity="0">
+            <path d="M880,232 L880,210" stroke="#a78bfa" stroke-width="2" fill="none" marker-end="url(#arrowBlue)"/>
+            <rect x="855" y="195" width="50" height="18" rx="4" fill="#2d1b69"/>
+            <text x="880" y="208" fill="#c4b5fd" font-size="10" text-anchor="middle" font-weight="bold">NADPH</text>
+          </g>
+
+          <!-- O2 output arrow -->
+          <g id="o2Output" opacity="0">
+            <path d="M67,445 L67,420" stroke="#10b981" stroke-width="2" fill="none" marker-end="url(#arrowGreen)"/>
+            <rect x="47" y="405" width="40" height="18" rx="4" fill="#064e3b"/>
+            <text x="67" y="418" fill="#6ee7b7" font-size="11" text-anchor="middle" font-weight="bold">O₂</text>
+          </g>
+
+          <!-- ATP synthase indicator (proton gradient) -->
+          <g id="atpSynthase" opacity="0.6">
+            <rect x="350" y="420" width="140" height="55" rx="8" fill="#1c1917" stroke="#d97706" stroke-width="1.5" stroke-dasharray="4,3"/>
+            <text x="420" y="438" fill="#fbbf24" font-size="10" text-anchor="middle" font-weight="bold">ATP Synthase</text>
+            <text x="420" y="452" fill="#d97706" font-size="9" text-anchor="middle">H⁺ gradient → ATP</text>
+            <text x="420" y="466" fill="#d97706" font-size="8" text-anchor="middle">(PQ pumps H⁺ across membrane)</text>
+          </g>
+
+          <!-- Step labels -->
+          <g id="stepLabels" fill="#6b7280" font-size="9">
+            <text x="105" y="435">① e⁻ donor</text>
+            <text x="195" y="270">② ETC</text>
+            <text x="330" y="318">③ H⁺ pump</text>
+            <text x="558" y="345">④ e⁻ carrier</text>
+            <text x="685" y="150">⑤ PSI</text>
+            <text x="745" y="185">⑥ NADPH</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Step progress bar -->
+      <div class="mt-3">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs text-gray-400">Animation progress</span>
+          <span id="stepLabel" class="text-xs text-green-400">Ready</span>
+        </div>
+        <div class="w-full bg-gray-700 rounded-full h-2">
+          <div id="progressBar" class="bg-green-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Panel -->
+    <div class="w-full lg:w-72 flex flex-col gap-3">
+      <!-- Info Box -->
+      <div id="infoPanel" class="bg-gray-800 rounded-xl border border-gray-700 p-4 flex-1">
+        <h2 class="text-green-400 font-bold text-base mb-2">Component Info</h2>
+        <div id="infoContent">
+          <p class="text-gray-400 text-sm">Click any component in the diagram to see details, or press <strong class="text-white">Start</strong> to animate the full Z-scheme.</p>
+          <div class="mt-4 p-3 bg-gray-700 rounded-lg">
+            <h3 class="text-yellow-400 font-semibold text-sm mb-2">What is the Z-Scheme?</h3>
+            <p class="text-gray-300 text-xs leading-relaxed">The Z-scheme describes the path of electrons during the light-dependent reactions of photosynthesis. Electrons flow from water (high reduction potential) through two photosystems, gaining energy from light, to ultimately reduce NADP⁺ to NADPH.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Steps Guide -->
+      <div class="bg-gray-800 rounded-xl border border-gray-700 p-4">
+        <h2 class="text-blue-400 font-bold text-sm mb-3">Electron Flow Steps</h2>
+        <ol class="space-y-1.5">
+          <li id="step-oec" class="flex items-start gap-2 text-xs text-gray-400">
+            <span class="bg-gray-700 text-gray-300 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 font-bold">1</span>
+            <span>Water splitting: 2H₂O → O₂ + 4H⁺ + 4e⁻ at OEC</span>
+          </li>
+          <li id="step-psii" class="flex items-start gap-2 text-xs text-gray-400">
+            <span class="bg-gray-700 text-gray-300 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 font-bold">2</span>
+            <span>P680 absorbs 680nm light → excited P680* (−0.8V)</span>
+          </li>
+          <li id="step-pheo" class="flex items-start gap-2 text-xs text-gray-400">
+            <span class="bg-gray-700 text-gray-300 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 font-bold">3</span>
+            <span>Electron passes to Pheophytin → QA → QB (−0.6V)</span>
+          </li>
+          <li id="step-pq" class="flex items-start gap-2 text-xs text-gray-400">
+            <span class="bg-gray-700 text-gray-300 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 font-bold">4</span>
+            <span>Plastoquinone (PQ) carries e⁻ + H⁺ across membrane</span>
+          </li>
+          <li id="step-cytb6f" class="flex items-start gap-2 text-xs text-gray-400">
+            <span class="bg-gray-700 text-gray-300 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 font-bold">5</span>
+            <span>Cyt b6f: e⁻ transfer + H⁺ pumping → ATP synthesis</span>
+          </li>
+          <li id="step-psi" class="flex items-start gap-2 text-xs text-gray-400">
+            <span class="bg-gray-700 text-gray-300 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 font-bold">6</span>
+            <span>P700 absorbs 700nm → excited P700* (−1.0V)</span>
+          </li>
+          <li id="step-fd" class="flex items-start gap-2 text-xs text-gray-400">
+            <span class="bg-gray-700 text-gray-300 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 font-bold">7</span>
+            <span>Ferredoxin (Fd) accepts electrons from PSI</span>
+          </li>
+          <li id="step-nadph" class="flex items-start gap-2 text-xs text-gray-400">
+            <span class="bg-gray-700 text-gray-300 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 font-bold">8</span>
+            <span>FNR reduces NADP⁺ + H⁺ → NADPH (final product)</span>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </main>
+
+<script>
+const componentInfo = {
+  oec: {
+    title: "OEC — Oxygen Evolving Complex",
+    redox: "+0.82V",
+    color: "text-emerald-400",
+    desc: "The manganese cluster that catalyzes water oxidation. Releases O₂ as a byproduct and provides electrons to P680⁺. The chemical equation: 2H₂O → O₂ + 4H⁺ + 4e⁻.",
+    clinical: "Source of all atmospheric O₂ on Earth"
+  },
+  p680g: {
+    title: "P680 — Photosystem II Reaction Center",
+    redox: "+1.1V (ground) / −0.8V (excited)",
+    color: "text-red-400",
+    desc: "Special chlorophyll pair absorbing at 680nm. The strongest biological oxidant known (+1.1V). After oxidizing water, it returns to ground state ready for light excitation.",
+    clinical: "Most powerful oxidant in biology"
+  },
+  p680e: {
+    title: "P680* — Excited P680",
+    redox: "−0.8V",
+    color: "text-yellow-400",
+    desc: "Light-excited state of P680. Rapidly transfers its high-energy electron to pheophytin within 300 picoseconds. The charge separation is nearly 100% efficient.",
+    clinical: "Charge separation efficiency ~100%"
+  },
+  pheo: {
+    title: "Pheophytin / QA — Primary/Secondary Acceptors",
+    redox: "−0.6V",
+    color: "text-blue-400",
+    desc: "Pheophytin is the first electron acceptor in PSII. It transfers the electron to QA (plastoquinone A), then to QB. QB becomes fully reduced (plastoquinol PQH₂) after accepting 2 electrons.",
+    clinical: "Stabilizes charge separation"
+  },
+  pq: {
+    title: "PQ — Plastoquinone Pool",
+    redox: "−0.05V",
+    color: "text-blue-400",
+    desc: "Mobile electron carrier in the thylakoid membrane. Picks up 2 electrons and 2 H⁺ from the stroma to form PQH₂ (plastoquinol), then delivers them to Cyt b6f. This H⁺ uptake contributes to the proton gradient driving ATP synthesis.",
+    clinical: "Mobile carrier; contributes to ΔpH for ATP synthesis"
+  },
+  cytb6f: {
+    title: "Cyt b6f — Cytochrome b6f Complex",
+    redox: "+0.36V",
+    color: "text-blue-400",
+    desc: "Analogous to Complex III in mitochondria. Oxidizes PQH₂ and reduces plastocyanin (PC). The Q-cycle pumps additional H⁺ into the lumen, enhancing the proton gradient and ATP yield.",
+    clinical: "Q-cycle doubles proton pumping efficiency"
+  },
+  pc: {
+    title: "PC — Plastocyanin",
+    redox: "+0.37V",
+    color: "text-blue-400",
+    desc: "Small copper-containing protein. Mobile electron carrier in the thylakoid lumen. Shuttles electrons from Cyt b6f to PSI (P700⁺). Contains one copper ion that alternates between Cu²⁺ and Cu⁺.",
+    clinical: "Links PSII and PSI electron transport"
+  },
+  p700g: {
+    title: "P700 — Photosystem I Reaction Center",
+    redox: "+0.45V (ground) / −1.0V (excited)",
+    color: "text-green-400",
+    desc: "Special chlorophyll pair absorbing at 700nm. PSI accepts electrons from PC (reducing P700⁺) and uses light energy to drive electron transfer to ferredoxin at very negative redox potential.",
+    clinical: "Powers NADPH production"
+  },
+  p700e: {
+    title: "P700* — Excited PSI",
+    redox: "−1.0V",
+    color: "text-yellow-400",
+    desc: "Light-excited state of P700. Very strongly reducing (−1.0V), capable of reducing ferredoxin. Charge separation passes through A₀ (chlorophyll), A₁ (phylloquinone), and Fe-S clusters before reaching Fd.",
+    clinical: "Drives NADP⁺ reduction"
+  },
+  fd: {
+    title: "Fd — Ferredoxin",
+    redox: "−0.43V",
+    color: "text-blue-400",
+    desc: "Iron-sulfur protein that accepts electrons from PSI. Highly soluble stromal protein. Transfers electrons to FNR. Can also feed the cyclic electron flow pathway around PSI to generate extra ATP.",
+    clinical: "Hub of electron distribution in chloroplast"
+  },
+  fnr: {
+    title: "FNR — Ferredoxin-NADP⁺ Reductase",
+    redox: "−0.32V",
+    color: "text-violet-400",
+    desc: "Flavoprotein (FAD cofactor) that catalyzes: 2 Fd(reduced) + NADP⁺ + H⁺ → 2 Fd(oxidized) + NADPH. This is the terminal step of the linear electron flow, producing NADPH used in the Calvin cycle.",
+    clinical: "Final product: NADPH for CO₂ fixation"
+  }
+};
+
+const steps = [
+  { id: 'step-oec', paths: ['pathOEC'], outputs: ['o2Output'], label: 'Step 1: Water splitting → O₂', comp: 'compOEC' },
+  { id: 'step-psii', paths: ['pathExcitePSII', 'lightExcitePSII'], label: 'Step 2: P680 light excitation', comp: 'compP680excited' },
+  { id: 'step-pheo', paths: ['pathP680toPheo'], label: 'Step 3: Primary charge separation', comp: 'compPheo' },
+  { id: 'step-pq', paths: ['pathPheoToPQ'], label: 'Step 4: Electron → PQ pool', comp: 'compPQ' },
+  { id: 'step-cytb6f', paths: ['pathPQtoCyt'], label: 'Step 5: PQ → Cyt b6f (H⁺ pump)', comp: 'compCytb6f' },
+  { id: 'step-psi', paths: ['pathCytToPC', 'pathPCtoP700', 'pathExcitePSI', 'lightExcitePSI'], label: 'Step 6: PC → P700 → PSI excitation', comp: 'compP700excited' },
+  { id: 'step-fd', paths: ['pathP700toFd'], label: 'Step 7: PSI → Ferredoxin', comp: 'compFd' },
+  { id: 'step-nadph', paths: ['pathFdToFNR'], outputs: ['nadphOutput'], label: 'Step 8: Fd → FNR → NADPH!', comp: 'compFNR' },
+];
+
+let currentStep = -1;
+let animTimer = null;
+let autoPlay = false;
+let autoTimer = null;
+
+function showInfo(key) {
+  const info = componentInfo[key];
+  if (!info) return;
+  const panel = document.getElementById('infoContent');
+  panel.innerHTML = `
+    <div class="mb-3">
+      <h3 class="${info.color} font-bold text-sm">${info.title}</h3>
+      <p class="text-gray-400 text-xs mt-1">Redox potential: <span class="text-white font-mono">${info.redox}</span></p>
+    </div>
+    <p class="text-gray-300 text-xs leading-relaxed">${info.desc}</p>
+    <div class="mt-3 p-2 bg-gray-700 rounded text-xs text-yellow-300">
+      <strong>Key fact:</strong> ${info.clinical}
+    </div>
+  `;
+}
+
+function activateStep(idx) {
+  if (idx < 0 || idx >= steps.length) return;
+  currentStep = idx;
+  const step = steps[idx];
+
+  // Update progress
+  document.getElementById('progressBar').style.width = ((idx + 1) / steps.length * 100) + '%';
+  document.getElementById('stepLabel').textContent = step.label;
+
+  // Highlight step in list
+  steps.forEach((s, i) => {
+    const el = document.getElementById(s.id);
+    if (el) {
+      if (i < idx) {
+        el.querySelectorAll('span').forEach(sp => {
+          sp.classList.remove('bg-gray-700', 'text-gray-300');
+          sp.classList.add('bg-green-800', 'text-green-300');
+        });
+        el.classList.add('text-green-400');
+        el.classList.remove('text-gray-400');
+      } else if (i === idx) {
+        el.querySelectorAll('span').forEach(sp => {
+          sp.classList.remove('bg-gray-700', 'text-gray-300');
+          sp.classList.add('bg-yellow-700', 'text-yellow-200');
+        });
+        el.classList.add('text-yellow-300');
+        el.classList.remove('text-gray-400');
+      }
+    }
+  });
+
+  // Animate paths
+  step.paths.forEach(pathId => {
+    const el = document.getElementById(pathId);
+    if (el) {
+      el.style.opacity = '1';
+      el.style.strokeDashoffset = '100';
+      // Trigger animation
+      void el.getBoundingClientRect();
+      el.style.transition = 'stroke-dashoffset 1s ease, opacity 0.3s';
+      el.style.strokeDashoffset = '0';
+    }
+  });
+
+  // Show outputs
+  if (step.outputs) {
+    step.outputs.forEach(outId => {
+      const el = document.getElementById(outId);
+      if (el) {
+        el.style.transition = 'opacity 0.5s';
+        el.style.opacity = '1';
+      }
+    });
+  }
+
+  // Highlight component
+  const comp = document.getElementById(step.comp);
+  if (comp) {
+    comp.style.opacity = '1';
+    comp.setAttribute('class', 'component-box step-active');
+  }
+}
+
+function startAnimation() {
+  if (currentStep >= steps.length - 1) {
+    resetAnimation();
+    return;
+  }
+  document.getElementById('btnStart').textContent = '⏸ Pause';
+  document.getElementById('btnStart').onclick = pauseAnimation;
+  nextStep();
+}
+
+function nextStep() {
+  activateStep(currentStep + 1);
+  if (currentStep < steps.length - 1) {
+    animTimer = setTimeout(nextStep, 1800);
+  } else {
+    document.getElementById('btnStart').textContent = '↺ Replay';
+    document.getElementById('btnStart').onclick = startAnimation;
+    document.getElementById('stepLabel').textContent = '✓ Z-Scheme complete!';
+    document.getElementById('progressBar').classList.add('bg-emerald-400');
+  }
+}
+
+function pauseAnimation() {
+  if (animTimer) { clearTimeout(animTimer); animTimer = null; }
+  document.getElementById('btnStart').textContent = '▶ Continue';
+  document.getElementById('btnStart').onclick = continueAnimation;
+}
+
+function continueAnimation() {
+  document.getElementById('btnStart').textContent = '⏸ Pause';
+  document.getElementById('btnStart').onclick = pauseAnimation;
+  nextStep();
+}
+
+function resetAnimation() {
+  if (animTimer) { clearTimeout(animTimer); animTimer = null; }
+  currentStep = -1;
+  document.getElementById('progressBar').style.width = '0%';
+  document.getElementById('progressBar').classList.remove('bg-emerald-400');
+  document.getElementById('stepLabel').textContent = 'Ready';
+  document.getElementById('btnStart').textContent = '▶ Start';
+  document.getElementById('btnStart').onclick = startAnimation;
+
+  // Reset paths
+  ['pathOEC','pathExcitePSII','pathP680toPheo','pathPheoToPQ','pathPQtoCyt',
+   'pathCytToPC','pathPCtoP700','pathExcitePSI','pathP700toFd','pathFdToFNR',
+   'lightExcitePSII','lightExcitePSI'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.opacity = '0'; el.style.strokeDashoffset = '100'; }
+  });
+  ['nadphOutput','o2Output'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.opacity = '0';
+  });
+
+  // Reset component opacities
+  ['compP680excited','compPheo','compPQ','compCytb6f','compPC','compP700excited','compFd','compFNR'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.opacity = '0.5'; el.setAttribute('class','component-box'); }
+  });
+
+  // Reset step list
+  steps.forEach(s => {
+    const el = document.getElementById(s.id);
+    if (el) {
+      el.querySelectorAll('span').forEach(sp => {
+        sp.className = 'bg-gray-700 text-gray-300 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 font-bold';
+      });
+      el.classList.remove('text-green-400','text-yellow-300');
+      el.classList.add('text-gray-400');
+    }
+  });
+
+  document.getElementById('infoContent').innerHTML = `
+    <p class="text-gray-400 text-sm">Click any component in the diagram to see details, or press <strong class="text-white">Start</strong> to animate the full Z-scheme.</p>
+    <div class="mt-4 p-3 bg-gray-700 rounded-lg">
+      <h3 class="text-yellow-400 font-semibold text-sm mb-2">What is the Z-Scheme?</h3>
+      <p class="text-gray-300 text-xs leading-relaxed">The Z-scheme describes the path of electrons during the light-dependent reactions of photosynthesis. Electrons flow from water (high reduction potential) through two photosystems, gaining energy from light, to ultimately reduce NADP⁺ to NADPH.</p>
+    </div>`;
+}
+
+function toggleAuto() {
+  autoPlay = !autoPlay;
+  const btn = document.getElementById('btnAuto');
+  if (autoPlay) {
+    btn.textContent = 'Auto ✓';
+    btn.classList.add('bg-blue-500');
+    btn.classList.remove('bg-blue-700');
+    // After completion, auto restart
+    autoTimer = setInterval(() => {
+      if (currentStep >= steps.length - 1) {
+        resetAnimation();
+        setTimeout(startAnimation, 800);
+      }
+    }, 2000);
+    if (currentStep < 0) startAnimation();
+  } else {
+    btn.textContent = 'Auto';
+    btn.classList.remove('bg-blue-500');
+    btn.classList.add('bg-blue-700');
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+  }
+}
+</script>
+</body>
+</html>
